@@ -1,11 +1,14 @@
 use polars::prelude::*;
 use std::env;
 
-use std::fs::File;
-
 fn load(path: &str) -> PolarsResult<DataFrame> {
     CsvReader::from_path(path)?.has_header(true).finish()
 }
+
+
+// TODO: Potentially explore adding a schema to validate that the
+// incoming Dataset is conforming to the expectations of the loader
+
 
 fn process(df: &DataFrame) {
     println!("{:?}", df);
@@ -45,7 +48,7 @@ fn drop_empty_columns(df: DataFrame) -> PolarsResult<DataFrame> {
 
 
 fn replace_newlines(df: DataFrame) -> PolarsResult<DataFrame> {
-    
+
     let new_df = df
         .clone()
         .lazy()
