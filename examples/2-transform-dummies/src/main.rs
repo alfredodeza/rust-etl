@@ -8,19 +8,10 @@ fn load(path: &str) -> PolarsResult<DataFrame> {
 fn process(df: &DataFrame) {
     println!("{:?}", df);
     println!("{:?}", df.schema());
-    // use rows only in the variety column that are not Red Wine or White Wine
-    let df = df.clone().lazy().filter(
-        col("variety")
-            .eq(lit("Red Wine"))
-            .or(col("variety").eq(lit("White Wine"))),
-    );
+    // do one hot encoding to the dataset
+    let df = df.to_dummies(None, false);
 
-    // now convert using columns_to_dummies()
-    let df = df.collect();
-    let df = df
-        .expect("no df")
-        .columns_to_dummies(vec!["variety"], None, false);
-
+    // check the output, how do the columns look?
     println!("{:?}", df);
 }
 
