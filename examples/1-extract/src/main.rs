@@ -1,14 +1,42 @@
 use polars::prelude::*;
+use serde::Deserialize;
 use std::env;
+use std::fs;
+use toml;
+
+// Config file format
+// example: columns = ["name", "age", "city"]
+#[derive(Deserialize)]
+struct Config {
+    columns: Vec<String>,
+}
 
 fn load(path: &str) -> PolarsResult<DataFrame> {
     CsvReader::from_path(path)?.has_header(true).finish()
 }
 
+// This function validates the schema of the DataFrame against the expected schema,
+// the config file contains the expected schema's column names. (toml format)
+// example: columns = ["name", "age", "city"]
+fn validate_schema(df: &DataFrame, config_path: &str) -> Result<(), std::io::Error>{
+    // Read the config file
+    let file_content = fs::read_to_string(config_path).unwrap();
 
-// TODO: Potentially explore adding a schema to validate that the
-// incoming Dataset is conforming to the expectations of the loader
+    // Parse the config file
+    let config: Config = toml::from_str(&file_content).unwrap();
 
+    // Parse the config file to get the expected column names
+    let expected_columns: Vec<&str> = config.columns.iter().map(AsRef::as_ref).collect();
+
+    // Get the actual column names from the DataFrame
+    let actual_columns: Vec<&str> = df.get_column_names().into_iter().map(AsRef::as_ref).collect();
+
+    // Compare the expected column names with the actual column names
+    match expected_columns == actual_columns {
+        true => Ok(()),
+        false => Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "Schema mismatch")),
+    }
+}
 
 fn process(df: &DataFrame) {
     println!("{:?}", df);
@@ -21,7 +49,6 @@ fn process(df: &DataFrame) {
     let df = drop_empty_columns(df.clone()).unwrap();
     let new_df = replace_newlines(df).unwrap();
     println!("{:?}", new_df);
-
 }
 
 fn drop_empty_columns(df: DataFrame) -> PolarsResult<DataFrame> {
@@ -46,24 +73,20 @@ fn drop_empty_columns(df: DataFrame) -> PolarsResult<DataFrame> {
     Ok(new_df)
 }
 
-
 fn replace_newlines(df: DataFrame) -> PolarsResult<DataFrame> {
-
     let new_df = df
         .clone()
         .lazy()
-        .with_columns([
-            col("notes").str()
-                .replace_all(lit(r"\\n|\\r"), lit(" "), false)
-                .alias("tmp_notes"),
-        ])
+        .with_columns([col("notes")
+            .str()
+            .replace_all(lit(r"\\n|\\r"), lit(" "), false)
+            .alias("tmp_notes")])
         .select([col("*").exclude(&["notes"])])
         .rename(&["tmp_notes"], &["notes"])
         .collect()?;
 
     Ok(new_df)
 }
-
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -74,7 +97,12 @@ fn main() {
 
     let csv_path = &args[1];
     match load(csv_path) {
-        Ok(df) => process(&df),
+        // Validate the schema of the DataFrame
+        Ok(df) => match validate_schema(&df, &args[2]) {
+            Ok(_) => process(&df),
+            Err(e) => eprintln!("{}", e),
+        },
+        // Handle errors for loading the CSV file
         Err(e) => eprintln!("{}", e),
     }
 }
