@@ -106,3 +106,66 @@ fn main() {
         Err(e) => eprintln!("{}", e),
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use polars::df;
+    use std::fs::File;
+    use std::io::Write;
+
+        #[test]
+        fn test_drop_empty_columns() -> Result<(), Box<dyn std::error::Error>> {
+            // Create a DataFrame with some empty columns
+            let df = df![
+            "name" => ["John", "Jane"],
+            "age" => [Some(30), Some(25)],
+            "city" => [None::<&str>, None]
+        ]?;
+
+            // Call drop_empty_columns and assert that the empty columns are dropped
+            let new_df = drop_empty_columns(df)?;
+            assert_eq!(new_df.get_column_names(), &["name", "age"]);
+
+            Ok(())
+        }
+
+    #[test]
+    fn test_replace_newlines() -> Result<(), Box<dyn std::error::Error>> {
+        // Create a DataFrame with a column that contains newline characters
+        let df = df!(
+        "notes" => ["Hello\nWorld", "Goodbye\rWorld"]
+    )?;
+
+        // Call replace_newlines and assert that the newline characters are replaced
+        let new_df = replace_newlines(df)?;
+        let result = new_df.column("notes").unwrap().get(0);
+        match result {
+            Ok(value) => assert_eq!(value, polars::prelude::AnyValue::String("Hello World")),
+            Err(_) => panic!("Unexpected error!"),
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_validate_schema() -> Result<(), Box<dyn std::error::Error>> {
+        // Create a DataFrame with a known schema
+        let df = df![
+            "name" => ["John", "Jane"],
+            "age" => [30, 25],
+            "city" => ["New York", "Los Angeles"]
+        ]?;
+
+        // Create a config file with matching column names
+        let config_path = "/tmp/config.toml";
+        let mut file = File::create(config_path)?;
+        write!(file, "columns = [\"name\", \"age\", \"city\"]")?;
+
+        // Call validate_schema and assert that it returns Ok(())
+        assert!(validate_schema(&df, config_path).is_ok());
+
+        Ok(())
+    }
+}
