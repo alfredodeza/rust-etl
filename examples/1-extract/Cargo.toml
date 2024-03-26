@@ -7,3 +7,5 @@ edition = "2021"
 
 [dependencies]
 polars = { version = "0.38.3", features = ["lazy", "strings", "regex"] }
+toml = "0.8.12"
+serde = { version = "1.0", features = ["derive"] }
